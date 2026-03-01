@@ -1,129 +1,100 @@
-import fs from "fs";
-import { csfd } from "node-csfd-api";
-import { exit } from "process";
+import { promises as fs } from 'fs';
+import path from 'path';
+import fastGlob from 'fast-glob';
+import { csfd } from 'node-csfd-api';
+import readline from 'readline';
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+const VIDEO_EXT = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv'];
+const FOLDER = path.resolve(process.argv[2]);       // make absolute internally
+const OUTPUT_FILE = process.argv[3];
+
+function normalizeName(filename) {
+  let name = filename.replace(path.extname(filename), '');
+  name = name.replace(/\[[^\]]+\]/g, '');
+  name = name.replace(/\([^)]+\)/g, '');
+  name = name.replace(
+    /1080p|720p|2160p|BluRay|BRRip|WEBRip|HDRip|DVDRip|x264|x265|HEVC|AVC|CZ|EN/gi,
+    ''
+  );
+  name = name.replace(/[_\.]/g, ' ');
+  name = name.replace(/\s+/g, ' ').trim();
+  return name;
 }
 
-function append_to_json(movie) {
-    const movieData = {
-        id: movie.id,
-        title: movie.title,
-        year: movie.year || null,
-        rating: movie.rating || null,
-        ratingCount: movie.ratingCount || null,
-        genres: movie.genres || [],
-        directors: movie.creators?.directors?.map(d => d.name) || [],
-        writers: movie.creators?.writers?.map(w => w.name) || [],
-        actors: movie.creators?.actors?.map(a => a.name) || []
-    };
-
-    const line = JSON.stringify(movieData) + "\n";
-    fs.appendFileSync("movies.jsonl", line, "utf8");
+function askQuestion(query) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  return new Promise(resolve =>
+    rl.question(query, ans => {
+      rl.close();
+      resolve(ans);
+    })
+  );
 }
 
-function init_json() {
-    fs.writeFileSync("movies.jsonl", "", "utf8");
-}
+async function processFiles() {
+  const files = await fastGlob(`${FOLDER}/**/*`, { onlyFiles: true });
+  await fs.writeFile(OUTPUT_FILE, '');
 
-function help() {
-    console.log("node scraper.js -e [number]");
-    console.log("-h            show help");
-    console.log("-s [number]   (default is 1) id of the first movie to get");
-    console.log("-e [number]   (required) id of the last movie to get");
-    console.log("-d [number]   (default is 500) delay in ms between each request");
-    exit(0);
-}
+  for (const filePath of files) {
+    const ext = path.extname(filePath).toLowerCase();
+    if (!VIDEO_EXT.includes(ext)) continue;
 
-async function start_scraping({ start_id, end_id, delay }) {
-    init_json();
-    
-    let collected = 0;
+    const filename = path.basename(filePath);
+    const searchName = normalizeName(filename);
+    if (!searchName) continue;
 
-    for (let id = start_id; id <= end_id; id++) {
-        try {
-            console.log(`trying id: ${id}`);
+    console.log(`\nsearching: ${searchName}`);
 
-            const detail = await csfd.movie(id);
+    try {
+      const results = await csfd.search(searchName);
+      const movies = results.movies ?? [];
 
-            // if (!detail || detail.type !== "film") {
-            //   continue;
-            // }
+      if (movies.length === 0) {
+        console.log('no match found');
+        continue;
+      }
 
-            // if (!detail.ratingCount || detail.ratingCount < 100) {
-            //   continue;
-            // }
+      const bestMatch = movies[0];
+      const movieDetail = await csfd.movie(bestMatch.id);
 
-            append_to_json(detail);
-            collected++;
+      console.log(`found: ${movieDetail.title} (${movieDetail.year})`);
+      console.log(`csfd id: ${movieDetail.id}`);
 
-            console.log(`saved ${collected} (${id}/${end_id}): ${detail.title}`);
+      const userInput = await askQuestion(
+        'press enter to confirm or type csfd id: '
+      );
 
-            await sleep(delay);
-        } catch (error) {
-            continue;
-        }
+      let csfd_id = bestMatch.id;
+      if (userInput.trim()) {
+        csfd_id = userInput.trim();
+      }
+
+      const relativePath = path.relative(FOLDER, filePath);
+
+      const outputEntry = {
+        file_path: relativePath,
+        csfd_id: csfd_id,
+        title: movieDetail.title,
+        year: movieDetail.year,
+        genres: movieDetail.genres
+      };
+
+      await fs.appendFile(
+        OUTPUT_FILE,
+        JSON.stringify(outputEntry) + '\n'
+      );
+
+      console.log(`saved: ${filename} -> csfd id: ${csfd_id}`);
+
+    } catch (err) {
+      console.error(`error for ${filename}:`, err.message);
     }
+  }
+
+  console.log('\ndone!');
 }
 
-function parse_args() {
-    const args = process.argv.slice(2);
-    
-    let start_id = 1;
-    let end_id = undefined;
-    let delay = 500;
-
-    args.forEach((arg, index) => {
-        switch(arg) {
-            case "-h":
-                help()
-            case "-s":
-                if(index + 1 >= args.length) {
-                    console.log("missing value")
-                }
-                start_id = parseInt(args[index + 1]);
-                if (isNaN(start_id)) {
-                    console.log("invalid start id");
-                    help();
-                }
-                break;
-            case "-e":
-                if(index + 1 >= args.length) {
-                    console.log("missing value")
-                }
-                end_id = parseInt(args[index + 1]);
-                if (isNaN(end_id)) {
-                    console.log("invalid end id");
-                    help();
-                }
-                break;
-            case "-d":
-                if(index + 1 >= args.length) {
-                    console.log("missing value")
-                }
-                delay = parseInt(args[index + 1]);
-                break;
-        }
-    });
-
-    if(end_id == undefined) {
-        console.log("missing arguments");
-        help();
-    }
-
-    return {start_id, end_id, delay};
-}
-
-async function main() {
-    const settings = parse_args(); 
-    console.log("scraper settings: " + JSON.stringify(settings));
-
-    console.log("scraper started");
-
-    await start_scraping(settings);
-
-    console.log("scraping finished");
-}
-
-main();
+processFiles();

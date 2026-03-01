@@ -1,1 +1,3 @@
-notes.txt
+dataset/
+genre_ai_dataset.jsonl
+.ipynb_checkpoints/
