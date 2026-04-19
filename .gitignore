@@ -1,2 +1,4 @@
 genre_ai_dataset.jsonl
 .ipynb_checkpoints/
+venv/
+venv311/

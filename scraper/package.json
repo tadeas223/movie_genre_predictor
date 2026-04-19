@@ -12,6 +12,6 @@
   "type": "module",
   "dependencies": {
     "fast-glob": "^3.3.3",
-    "node-csfd-api": "^4.3.1"
+    "node-csfd-api": "5.6.1"
   }
 }
