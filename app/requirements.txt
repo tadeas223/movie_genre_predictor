@@ -1,0 +1,7 @@
+ffmpeg-python
+pandas
+librosa
+numpy
+tensorflow
+scikit-learn
+opencv-python

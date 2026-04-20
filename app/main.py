@@ -1,3 +1,4 @@
+import platform
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -14,6 +15,17 @@ from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
 import re
 import cv2
 import threading
+
+def get_ffmpeg_path():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    vendor_dir = os.path.join(base_dir, "..", "vendor")
+
+    if platform.system() == "Windows":
+        return os.path.join(vendor_dir, "ffmpeg.exe")
+    else:
+        return os.path.join(vendor_dir, "ffmpeg")  # linux/mac
+
+FFMPEG_PATH = get_ffmpeg_path()
 
 # copy of processing code
 
@@ -50,7 +62,7 @@ def chop_video(video_path, output_pattern, clip_duration=600):
                 reset_timestamps=1
             )
             .overwrite_output()
-            .run(quiet=True)
+            .run(cmd=FFMPEG_PATH, quiet=True)
         )
         return "copy"
     except ffmpeg.Error:
@@ -73,7 +85,7 @@ def chop_video(video_path, output_pattern, clip_duration=600):
                 reset_timestamps=1
             )
             .overwrite_output()
-            .run(quiet=True)
+            .run(cmd=FFMPEG_PATH, quiet=True)
         )
         return "reencode"
     except ffmpeg.Error:
@@ -200,7 +212,7 @@ def process_audio(video_clip, root_dir, segments=32, sample_rate=8000):
         ffmpeg
         .input(video_path)
         .output('pipe:', format='f32le', acodec='pcm_f32le', ac=1, ar=sample_rate)
-        .run(capture_stdout=True, capture_stderr=True)
+        .run(cmd=FFMPEG_PATH, capture_stdout=True, capture_stderr=True)
     )
     
     y = np.frombuffer(out, np.float32)
