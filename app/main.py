@@ -337,9 +337,9 @@ def predict_genres():
         mlb = pickle.load(mlb_file)
 
     pred_probs = model.predict(X)
-    avg_probs = pred_probs.mean(axis=0)
-    pred_labels = (avg_probs >= 0.5).astype(int)
-
+    avg_probs = pred_probs.mean(axis=0) 
+    pred_labels = (avg_probs >= 0.4).astype(int)
+    
     predicted_genres = [genre for i, genre in enumerate(mlb.classes_) if pred_labels[i] == 1]
 
     if predicted_genres:
