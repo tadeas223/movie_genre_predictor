@@ -1,20 +1,22 @@
+import os
+import glob
 import platform
+import re
+import shutil
+import threading
+import pickle
+
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
 import ffmpeg
-import os
-import glob
-import os
-import pandas as pd
+import cv2
 import librosa
 import numpy as np
-import shutil
+import pandas as pd
+
 from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
-import re
-import cv2
-import threading
 
 def get_ffmpeg_path():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +25,7 @@ def get_ffmpeg_path():
     if platform.system() == "Windows":
         return os.path.join(vendor_dir, "ffmpeg.exe")
     else:
-        return os.path.join(vendor_dir, "ffmpeg")  # linux/mac
+        return os.path.join(vendor_dir, "ffmpeg")
 
 FFMPEG_PATH = get_ffmpeg_path()
 
@@ -299,12 +301,6 @@ def prepare_dataset_y(dataset):
 # gui code
 
 def predict_genres():
-    import os
-    import shutil
-    import pickle
-    import pandas as pd
-    from tensorflow.keras.models import load_model
-    from tkinter import messagebox
 
     video_path = video_path_var.get()
     if not video_path:
